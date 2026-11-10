@@ -112,12 +112,17 @@ textarea{min-height:90px;resize:vertical}
         <button class="big" data-add="phone">📱 スマホ<small>7.5×15.5cm 190g</small></button>
         <button class="big" data-add="tablet">タブレット<small>17×25cm 480g</small></button>
       </div>
-      <h3>見本（2つのアイデア）</h3>
+      <h3>見本のアイデア</h3>
       <div class="grid">
         <button class="big" data-preset="A_tab">案A 半月十字<small>＋タブレット横</small></button>
         <button class="big" data-preset="A_phone">案A 半月十字<small>＋スマホ</small></button>
         <button class="big" data-preset="B_phone">案B 背もたれ式<small>＋スマホ</small></button>
         <button class="big" data-preset="B_tab">案B 背もたれ式<small>＋タブレット横</small></button>
+        <button class="big" data-preset="C_phone">案C 斜め切り1本<small>部品1つ</small></button>
+        <button class="big" data-preset="D_phone">案D 輪切りの段々<small>輪切り3枚</small></button>
+        <button class="big" data-preset="E_phone">案E 2本並べ<small>寝かせる＋立てる</small></button>
+        <button class="big" data-preset="F_phone">案F 半月＋台座<small>スマホ横</small></button>
+        <button class="big" data-preset="G_phone">案G くさび2つ<small>三角の斜面</small></button>
       </div>
       <h3>全体</h3>
       <div class="grid"><button class="big warn" id="bClear">すべて消す</button></div>
@@ -404,7 +409,27 @@ function makeCore(THREE, CANNON, ConvexHull) {
       }
     }
     if (vol > 0) cen.divideScalar(vol);
-    return { verts, faces, vol: Math.abs(vol), cen };
+    return { verts, faces: mergeCoplanar(verts, faces), vol: Math.abs(vol), cen };
+  }
+  // 同じ平面の三角形を1つの多角形の面にまとめる（三角形のままだと平らな面どうしの接触が1つの三角形の範囲しか支えず、重ねた部品が傾く）
+  function mergeCoplanar(verts, faces) {
+    const groups = [];
+    for (const f of faces) {
+      const a = verts[f[0]], b = verts[f[1]], c = verts[f[2]];
+      const n = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a));
+      if (n.lengthSq() < 1e-14) continue; n.normalize();
+      const d = n.dot(a);
+      let g = groups.find(g => g.n.dot(n) > 1 - 1e-6 && Math.abs(g.d - d) < 1e-4);
+      if (!g) groups.push(g = { n, d, ids: new Set() });
+      f.forEach(i => g.ids.add(i));
+    }
+    return groups.map(({ n, ids }) => {
+      const u = new THREE.Vector3(1, 0, 0); if (Math.abs(n.x) > 0.9) u.set(0, 1, 0);
+      u.sub(n.clone().multiplyScalar(u.dot(n))).normalize();
+      const w = new THREE.Vector3().crossVectors(n, u); // u × w = n → 2Dで反時計回り＝外向き
+      const pts = [...ids].map(i => [verts[i].dot(u), verts[i].dot(w), i]);
+      return hull2(pts).map(q => pts.find(p => p[0] === q[0] && p[1] === q[1])[2]);
+    }).filter(f => f.length >= 3);
   }
 
   // 部品の形を作る（重心を原点に）
@@ -517,11 +542,20 @@ const r1 = (v) => Math.round(v * 10) / 10;
 const hm = (ry, from) => ({ type: 'halfmoon', p: { D: 10, T: 2.5, sw: 2.6, sd: 2.5, sfrom: from }, pos: [0, 0, 0], rot: [0, ry, 0] });
 const discB = () => ({ type: 'log', p: { d: 10, L: 2, cut: 90, gw: 1.0, gd: 0.6, gz: 3.8 }, pos: [0, 0, 0], rot: [0, 0, 0] });
 const logB = () => ({ type: 'log', p: { d: 5, L: 6.55, cut: 60 }, pos: [0, 4.52, 1.65], rot: [-90, 0, 0] });
+const phone = (z, y = 0.25) => ({ type: 'phone', p: { land: '0' }, pos: [0, y, z], rot: [-30, 0, 0] });
+const disc = (d, L, y, z) => ({ type: 'log', p: { d, L, cut: 90 }, pos: [0, y, z], rot: [0, 0, 0] });
+const halfLog = (D, len, y, z) => ({ type: 'halfmoon', p: { D, T: len, sw: 0, nx: 0 }, pos: [0, y, z], rot: [0, 90, 0] }); // 縦半分の丸太（平らな面が下）
+const wedge = (x) => ({ type: 'prism', p: { B: 8, H: 7, L: 4, a: 0 }, pos: [x, 0, 0], rot: [0, 90, 0] });
 const PRESETS = {
   A_tab: { title: '案A 半月2枚の十字＋タブレット（横）', reason: '半月2枚を十字に組んで45°回し、手前のV字の谷にタブレットをもたせる。2本の腕の弧の2点で背中を、机で下端を支える。', parts: [hm(45, 'top'), hm(135, 'bottom'), { type: 'tablet', p: { land: '1' }, pos: [0, 0.05, 4.6], rot: [-20, 0, 0] }] },
   A_phone: { title: '案A 半月2枚の十字＋スマホ', reason: '同じ十字にスマホを横向きでもたせた例。背中を支える弧が低く、下端が机の上で滑りやすい。', parts: [hm(45, 'top'), hm(135, 'bottom'), { type: 'phone', p: { land: '1' }, pos: [0, 0.05, 4.6], rot: [-20, 0, 0] }] },
   B_phone: { title: '案B 細い丸太の背もたれ式＋スマホ', reason: '60°に切った切り口を手前に向けて丸太を寝かせる。スマホは下端を台座の溝、背中を切り口の面で支える。', parts: [discB(), logB(), { type: 'phone', p: { land: '0' }, pos: [0, 1.45, 3.8], rot: [-27, 0, 0] }] },
   B_tab: { title: '案B 背もたれ式＋タブレット（横）', reason: 'タブレットは横向きにすると重心が低くなり、丸太が押し負けない。', parts: [discB(), logB(), { type: 'tablet', p: { land: '1' }, pos: [0, 1.45, 3.8], rot: [-27, 0, 0] }] },
+  C_phone: { title: '案C 斜め切り1本', reason: '太い丸太の片側を60°に切って寝かせるだけ。斜めの切り口がそのまま背もたれになる。部品は1つ。', parts: [{ type: 'log', p: { d: 9, L: 10, cut: 60 }, pos: [0, 4.5, 0], rot: [-90, 0, 0] }, phone(3.0)] },
+  D_phone: { title: '案D 輪切り3枚の段々', reason: '大・中・小の輪切りを後ろにずらして重ね、3つの角を一直線に並べる。スマホは3つの角にもたれる。', parts: [disc(10, 2, 0, -5), disc(7, 2, 2, -4.65), disc(5, 2, 4, -4.81), phone(1.57)] },
+  E_phone: { title: '案E 2本並べ（寝かせる＋立てる）', reason: '手前に細い丸太を寝かせて下端を止め、奥に太い丸太を立てて背もたれにする。手前の丸太は縦半分に割り、平らな面を下にすると転がらない。', parts: [halfLog(6, 12, 0, 3.45), { type: 'log', p: { d: 8, L: 8, cut: 90 }, pos: [0, 0, -9.03], rot: [0, 0, 0] }, phone(0)] },
+  F_phone: { title: '案F 半月1枚＋輪切りの台座（スマホ横）', reason: '半月板を前後方向に立てて台座にのせ、弧の手前側にもたせる。半月は高さが5cmしかないので、重心の低い横向きで45°くらいに寝かせると立つ。', parts: [disc(12, 2, 0, 0), halfLog(10, 2.5, 2, -2.3), { type: 'phone', p: { land: '1' }, pos: [0, 2.3, 5.18], rot: [-45, 0, 0] }] },
+  G_phone: { title: '案G くさび2つ', reason: '丸太を三角に割ったくさびを左右に並べ、60°の斜面にスマホをもたせる。くさびが小さいと押されて後ろに倒れるので、底辺8cm・幅4cmくらいの重さがほしい。', parts: [wedge(-2.25), wedge(2.25), phone(4.42)] },
 };
 
 // ===== three.js =====
