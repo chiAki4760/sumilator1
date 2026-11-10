@@ -126,7 +126,7 @@ textarea{min-height:90px;resize:vertical}
       </div>
       <h3>全体</h3>
       <div class="grid"><button class="big warn" id="bClear">すべて消す</button></div>
-      <p class="note">操作：1本指で視点回転、2本指で拡大・移動。部品をタップすると選択（タップした点が回転の中心になります）。</p>
+      <p class="note">操作：1本指で視点回転、2本指で拡大・移動。部品をタップすると選択（タップした点が回転の中心になります）。<b>選んだ部品を指で押さえたまま動かすと、床の上を滑らせて移動できます。</b></p>
     </div>
     <div class="pane" id="p-move">
       <div class="selinfo" id="selInfo">部品をタップして選んでください</div>
@@ -762,6 +762,61 @@ renderer.domElement.addEventListener('pointerup', (e) => {
     if ($('#tabs .on').dataset.t === 'add') showTab('move');
   } else select(null);
 });
+
+// ===== 指で引きずって移動（選んだ部品を床に沿って滑らせる） =====
+const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const dragHit = new THREE.Vector3();
+const activePointers = new Set();
+let fingerDrag = null;
+function rayFromEvent(e) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+}
+stage.addEventListener('pointerdown', (e) => {
+  activePointers.add(e.pointerId);
+  if (e.target !== renderer.domElement) return;
+  if (fingerDrag) { endFingerDrag(); e.stopPropagation(); return; } // 2本目の指が来たら移動をやめる
+  if (activePointers.size > 1 || selectedId == null || gizmoMode !== 'off') return;
+  const v = views.get(selectedId); if (!v) return;
+  rayFromEvent(e);
+  const meshes = []; v.group.traverse(o => { if (o.isMesh) meshes.push(o); });
+  const hit = ray.intersectObjects(meshes, false)[0];
+  if (!hit) return; // 部品の外を触ったら、いつもどおり視点を回す
+  e.stopPropagation();
+  dragPlane.constant = -hit.point.y;
+  fingerDrag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, start: hit.point.clone(), pos0: [...partById(selectedId).pos], moved: false };
+  try { renderer.domElement.setPointerCapture(e.pointerId); } catch (_) {}
+}, true);
+stage.addEventListener('pointermove', (e) => {
+  if (!fingerDrag || e.pointerId !== fingerDrag.id) return;
+  e.stopPropagation();
+  const part = partById(selectedId); if (!part) { fingerDrag = null; return; }
+  if (!fingerDrag.moved) {
+    if (Math.hypot(e.clientX - fingerDrag.sx, e.clientY - fingerDrag.sy) < 6) return;
+    fingerDrag.moved = true;
+    if (showingSim) placeAll();
+    stopSim(); pushUndo();
+  }
+  rayFromEvent(e);
+  if (!ray.ray.intersectPlane(dragPlane, dragHit)) return;
+  let dx = dragHit.x - fingerDrag.start.x, dz = dragHit.z - fingerDrag.start.z;
+  const len = Math.hypot(dx, dz); if (len > 60) { dx *= 60 / len; dz *= 60 / len; }
+  part.pos[0] = Math.round((fingerDrag.pos0[0] + dx) * 10) / 10;
+  part.pos[2] = Math.round((fingerDrag.pos0[2] + dz) * 10) / 10;
+  placeView(part); updatePivotMark(); renderSel();
+}, true);
+function endFingerDrag(e) {
+  const d = fingerDrag; fingerDrag = null;
+  if (d.moved) afterEdit();
+  else if (e) select(selectedId, d.start); // 動かさずに離した＝タップ：その点を回転の中心にする
+}
+['pointerup', 'pointercancel'].forEach(ev => stage.addEventListener(ev, (e) => {
+  activePointers.delete(e.pointerId);
+  if (!fingerDrag || e.pointerId !== fingerDrag.id) return;
+  e.stopPropagation();
+  endFingerDrag(ev === 'pointerup' ? e : null);
+}, true));
 
 // ===== 3Dハンドル =====
 let gizmoMode = 'off'; let dragStart = null;
