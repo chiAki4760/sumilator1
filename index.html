@@ -76,7 +76,7 @@ textarea{min-height:90px;resize:vertical}
       <div id="result">読み込み中…</div>
       <div class="iconbtns">
         <button class="ib" id="bSim" title="シミュレーション">▶<small>試す</small></button>
-        <button class="ib" id="bReset" title="配置に戻す">↺<small>戻す</small></button>
+        <button class="ib" id="bReset" title="配置に戻す／1つ前に戻す">↺<small>戻す</small></button>
         <button class="ib" id="bAdopt" title="結果の姿勢を配置にする">✓<small>確定</small></button>
         <button class="ib" id="bGizmo" title="3Dハンドル">✥<small>ﾊﾝﾄﾞﾙ</small></button>
       </div>
@@ -657,6 +657,19 @@ function sceneRightEdge() {
 }
 function addPart(kind) {
   let part;
+  // 端末は1台だけ。すでに置いてあれば同じ場所・同じ傾きで入れ替える（重ねると弾き飛ばし合うため）
+  if (C.isDevice(kind)) {
+    const old = parts.find(p => C.isDevice(p.type));
+    if (old && old.type === kind) { select(old.id, null); setResult(`${C.DEVICES[kind].label}はもう置いてあります。`); return; }
+    if (old) {
+      pushUndo();
+      const nw = { id: nextId++, type: kind, p: { ...C.defaults(kind), land: old.p.land }, pos: [...old.pos], rot: [...old.rot] };
+      parts = parts.map(p => p === old ? nw : p); removeView(old.id); buildView(nw);
+      select(nw.id, null); afterEdit();
+      return;
+    }
+  }
+  pushUndo();
   const base = (type, p) => ({ id: nextId++, type, p: { ...C.defaults(type), ...p }, pos: [0, 0, 0], rot: [0, 0, 0] });
   if (kind === 'disc') part = base('log', { d: 10, L: 2 });
   else if (kind === 'stick') part = base('log', { d: 2, L: 12 });
@@ -731,7 +744,7 @@ tc.addEventListener('dragging-changed', (e) => {
   const part = partById(selectedId); if (!part) return;
   if (e.value) {
     if (showingSim) placeAll();
-    stopSim();
+    stopSim(); pushUndo();
     dragStart = { a: anchor.matrixWorld.clone(), ref: new THREE.Matrix4().compose(new THREE.Vector3(...part.pos), C.partQuat(part), new THREE.Vector3(1, 1, 1)) };
   } else { dragStart = null; afterEdit(); }
 });
@@ -753,7 +766,7 @@ function setPose(part, p, q) {
 // ===== ボタン操作（長押しで連続） =====
 function repeatable(btn, fn) {
   let timer = null, iv = null;
-  const start = (e) => { e.preventDefault(); fn(); timer = setTimeout(() => { iv = setInterval(fn, 90); }, 380); };
+  const start = (e) => { e.preventDefault(); if (partById(selectedId)) pushUndo(); fn(); timer = setTimeout(() => { iv = setInterval(fn, 90); }, 380); };
   const end = () => { if (timer || iv) { clearTimeout(timer); clearInterval(iv); timer = iv = null; afterEdit(); } };
   btn.addEventListener('pointerdown', start);
   ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, end));
@@ -778,11 +791,11 @@ $$('[data-rt]').forEach(b => repeatable(b, () => {
 }));
 $$('#segStep button').forEach(b => b.onclick = () => { moveStep = +b.dataset.v; $$('#segStep button').forEach(x => x.classList.toggle('on', x === b)); });
 $$('#segRot button').forEach(b => b.onclick = () => { rotStep = +b.dataset.v; $$('#segRot button').forEach(x => x.classList.toggle('on', x === b)); });
-$('#bDrop').onclick = () => { const part = partById(selectedId); if (!part) return; if (showingSim) placeAll(); const b = new THREE.Box3().setFromObject(views.get(part.id).group); part.pos[1] = Math.round((part.pos[1] - b.min.y + 0.02) * 100) / 100; placeView(part); updatePivotMark(); renderSel(); afterEdit(); };
+$('#bDrop').onclick = () => { const part = partById(selectedId); if (!part) return; if (showingSim) placeAll(); pushUndo(); const b = new THREE.Box3().setFromObject(views.get(part.id).group); part.pos[1] = Math.round((part.pos[1] - b.min.y + 0.02) * 100) / 100; placeView(part); updatePivotMark(); renderSel(); afterEdit(); };
 $('#bCenter').onclick = () => { if (selectedId == null) return; pivotLocal.set(0, 0, 0); updatePivotMark(); };
-$('#bDup').onclick = () => { const part = partById(selectedId); if (!part) return; const c = JSON.parse(JSON.stringify(part)); c.id = nextId++; c.pos[0] = r1(c.pos[0] + 3); parts.push(c); buildView(c); select(c.id, null); afterEdit(); };
-$('#bDel').onclick = () => { if (selectedId == null) return; parts = parts.filter(p => p.id !== selectedId); removeView(selectedId); select(null); afterEdit(); };
-$('#bClear').onclick = () => { if (!parts.length) return; if (!confirmInline('#bClear', 'もう一度押すと全部消します')) return; parts.forEach(p => removeView(p.id)); parts = []; select(null); stopSim(); setResult('部品がありません。「追加」から部品を置いてください。'); };
+$('#bDup').onclick = () => { const part = partById(selectedId); if (!part) return; pushUndo(); const c = JSON.parse(JSON.stringify(part)); c.id = nextId++; c.pos[0] = r1(c.pos[0] + 3); parts.push(c); buildView(c); select(c.id, null); afterEdit(); };
+$('#bDel').onclick = () => { if (selectedId == null) return; pushUndo(); parts = parts.filter(p => p.id !== selectedId); removeView(selectedId); select(null); afterEdit(); };
+$('#bClear').onclick = () => { if (!parts.length) return; if (!confirmInline('#bClear', 'もう一度押すと全部消します')) return; pushUndo(); parts.forEach(p => removeView(p.id)); parts = []; select(null); stopSim(); setResult('部品がありません。「追加」から部品を置いてください。'); };
 function confirmInline(sel, msg) {
   const b = $(sel); if (b.dataset.armed) { delete b.dataset.armed; b.textContent = 'すべて消す'; return true; }
   b.dataset.armed = 1; b.textContent = msg; setTimeout(() => { delete b.dataset.armed; b.textContent = 'すべて消す'; }, 3000); return false;
@@ -791,6 +804,7 @@ $$('[data-add]').forEach(b => b.onclick = () => addPart(b.dataset.add));
 $$('[data-preset]').forEach(b => b.onclick = () => { const pr = PRESETS[b.dataset.preset]; loadDesign(JSON.parse(JSON.stringify(pr.parts))); setResult(`<b>${pr.title}</b><br><span class="small">${pr.reason}</span>`); });
 
 // ===== 寸法フォーム =====
+let sizeBurst = null;
 function renderSize() {
   const part = partById(selectedId); const box = $('#sizeForm');
   if (!part) { box.innerHTML = '部品をタップして選んでください'; return; }
@@ -809,6 +823,7 @@ function renderSize() {
   ['X（前後に倒す）', 'Y（向き）', 'Z（左右に傾ける）'].forEach((a, i) => h += numField(i, a, '°', -180, 180, 1, part.rot[i], 'rot'));
   box.innerHTML = h;
   box.querySelectorAll('input,select,textarea').forEach(el => el.addEventListener('input', () => {
+    if (!sizeBurst) pushUndo(); clearTimeout(sizeBurst); sizeBurst = setTimeout(() => { sizeBurst = null; }, 800);
     const g = el.dataset.g, k = el.dataset.k;
     if (g === 'pts') { try { const v = JSON.parse(el.value); if (Array.isArray(v) && v.length >= 3) part.p.pts = v; else return; } catch { return; } }
     else if (g === 'p') part.p[k] = el.tagName === 'SELECT' ? el.value : +el.value;
@@ -858,13 +873,34 @@ function summarizeContacts(cs) {
   return { n, devPartPoints: pts.slice(0, 8), text };
 }
 function setResult(h) { $('#result').innerHTML = h; }
+// ===== 取り消し（1つ前に戻す） =====
+const undoStack = [];
+function pushUndo() {
+  const s = JSON.stringify({ parts, nextId });
+  if (undoStack[undoStack.length - 1] === s) return;
+  undoStack.push(s); if (undoStack.length > 50) undoStack.shift();
+}
+function undo() {
+  const s = undoStack.pop(); if (!s) return false;
+  const v = JSON.parse(s);
+  stopSim(); parts.forEach(p => removeView(p.id));
+  parts = v.parts; nextId = Math.max(nextId, v.nextId); parts.forEach(buildView);
+  if (!partById(selectedId)) { selectedId = null; tc.detach(); }
+  placeAll(); highlight(); renderSel(); renderSize();
+  return true;
+}
 let edT = null;
 function afterEdit() { clearTimeout(edT); if (autoSim) startSim(); }
 function afterEditDebounced() { clearTimeout(edT); edT = setTimeout(() => { if (autoSim) startSim(); }, 600); }
 $('#bSim').onclick = startSim;
-$('#bReset').onclick = () => { stopSim(); placeAll(); setResult('配置の状態に戻しました。'); };
+// シミュレーション結果を表示中なら配置の状態へ。配置の状態なら1つ前の操作を取り消す。
+$('#bReset').onclick = () => {
+  if (sim || showingSim) { stopSim(); placeAll(); setResult('配置の状態に戻しました。<br><span class="small">もう一度押すと、1つ前の操作を取り消します。</span>'); return; }
+  setResult(undo() ? '1つ前の状態に戻しました。<br><span class="small">▶で試せます。続けて押すとさらに戻ります。</span>' : 'これ以上は戻せません。');
+};
 $('#bAdopt').onclick = () => {
   if (!lastSim || !showingSim) { setResult('先に ▶ でシミュレーションしてください。'); return; }
+  pushUndo();
   for (const e of lastSim.entries) {
     const q = new THREE.Quaternion(e.body.quaternion.x, e.body.quaternion.y, e.body.quaternion.z, e.body.quaternion.w);
     const p = new THREE.Vector3(e.body.position.x, e.body.position.y, e.body.position.z).sub(e.shape.com.clone().applyQuaternion(q));
@@ -887,6 +923,7 @@ function sanitize(list) {
   return out;
 }
 function loadDesign(list) {
+  if (parts.length) pushUndo();
   parts.forEach(p => removeView(p.id)); selectedId = null; tc.detach();
   parts = sanitize(list); parts.forEach(buildView); highlight(); renderSel(); renderSize();
   frameAll(); startSim();
