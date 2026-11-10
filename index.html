@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>丸太スマホスタンド 3Dシミュレーター</title>
+<style>
+:root{--bg:#f6f1e8;--panel:#fffaf2;--ink:#2d241b;--sub:#7a6a58;--wood:#b9824f;--accent:#2f6f4f;--ng:#b23b2e;--line:#e3d6c3;--btn:#efe4d3}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;overflow:hidden}
+#app{display:flex;flex-direction:column;height:100%}
+#stage{position:relative;flex:1 1 auto;min-height:0}
+#stage canvas{display:block;width:100%;height:100%;touch-action:none}
+#topbar{position:absolute;left:8px;right:8px;top:8px;display:flex;gap:6px;align-items:flex-start;pointer-events:none}
+#topbar>*{pointer-events:auto}
+#result{flex:1;background:rgba(255,250,242,.94);border:1px solid var(--line);border-radius:14px;padding:8px 12px;font-size:14px;line-height:1.4;min-height:44px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+#result b.ok{color:var(--accent)} #result b.ng{color:var(--ng)}
+#result .small{font-size:12px;color:var(--sub)}
+.iconbtns{display:flex;flex-direction:column;gap:6px}
+.ib{width:52px;height:52px;border-radius:14px;border:1px solid var(--line);background:rgba(255,250,242,.96);font-size:20px;display:flex;align-items:center;justify-content:center;flex-direction:column;line-height:1;cursor:pointer;color:var(--ink)}
+.ib small{font-size:10px;margin-top:3px}
+.ib.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+#legend{position:absolute;left:8px;bottom:8px;background:rgba(255,250,242,.9);border-radius:10px;padding:4px 8px;font-size:11px;color:var(--sub);display:flex;gap:8px;flex-wrap:wrap;pointer-events:none}
+#legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:3px;vertical-align:-1px}
+#sheet{flex:0 0 auto;height:44vh;background:var(--panel);border-top:1px solid var(--line);display:flex;flex-direction:column;transition:height .2s}
+#sheet.min{height:58px}
+#tabs{display:flex;border-bottom:1px solid var(--line);flex:0 0 auto}
+#tabs button{flex:1;min-height:52px;border:0;background:none;font-size:14px;color:var(--sub);border-bottom:3px solid transparent;cursor:pointer;font-family:inherit}
+#tabs button.on{color:var(--ink);border-bottom-color:var(--wood);font-weight:700}
+#tabs .tog{flex:0 0 48px;font-size:18px}
+.pane{display:none;overflow:auto;padding:12px;flex:1;-webkit-overflow-scrolling:touch}
+.pane.on{display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
+.big{min-height:56px;border-radius:14px;border:1px solid var(--line);background:var(--btn);font-size:15px;font-family:inherit;color:var(--ink);cursor:pointer;padding:6px 8px}
+.big:active{transform:scale(.97)}
+.big.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
+.big.warn{background:#f5ddd8;border-color:#e8bfb7}
+.big small{display:block;font-size:11px;color:inherit;opacity:.75}
+h3{font-size:13px;margin:14px 0 6px;color:var(--sub);font-weight:600}
+h3:first-child{margin-top:0}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pad .big{font-size:16px;min-height:60px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row>*{flex:1}
+.field{margin-bottom:12px}
+.field label{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;gap:8px}
+.field .ctl{display:flex;gap:8px;align-items:center}
+.field input[type=range]{flex:1;height:36px;accent-color:var(--wood)}
+.field input[type=number]{width:84px;height:44px;font-size:16px;border:1px solid var(--line);border-radius:10px;padding:0 8px;background:#fff}
+.field select,textarea,input[type=text]{width:100%;min-height:44px;font-size:16px;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff;font-family:inherit}
+textarea{min-height:90px;resize:vertical}
+.note{font-size:12px;color:var(--sub);line-height:1.6}
+.seg{display:flex;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.seg button{flex:1;min-height:46px;border:0;background:#fff;font-size:14px;font-family:inherit;cursor:pointer}
+.seg button.on{background:var(--wood);color:#fff}
+#aiOut{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;font-size:14px;line-height:1.6;margin-top:10px;display:none;white-space:pre-wrap}
+.saveItem{display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.saveItem span{flex:1;font-size:14px}
+.saveItem button{min-height:44px;min-width:64px}
+.selinfo{font-size:14px;margin-bottom:8px;padding:8px 10px;background:#fff;border-radius:10px;border:1px solid var(--line)}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid #ccc;border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+<script type="importmap">
+{"imports":{
+ "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+ "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+ "cannon-es":"https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
+}}
+</script>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <div id="topbar">
+      <div id="result">読み込み中…</div>
+      <div class="iconbtns">
+        <button class="ib" id="bSim" title="シミュレーション">▶<small>試す</small></button>
+        <button class="ib" id="bReset" title="配置に戻す">↺<small>戻す</small></button>
+        <button class="ib" id="bAdopt" title="結果の姿勢を配置にする">✓<small>確定</small></button>
+        <button class="ib" id="bGizmo" title="3Dハンドル">✥<small>ﾊﾝﾄﾞﾙ</small></button>
+      </div>
+    </div>
+    <div id="legend">
+      <span><i style="background:#e5484d"></i>スマホ↔部品</span>
+      <span><i style="background:#f59e0b"></i>スマホ↔床</span>
+      <span><i style="background:#22a06b"></i>部品↔部品</span>
+      <span><i style="background:#3b82f6"></i>部品↔床</span>
+    </div>
+  </div>
+  <div id="sheet">
+    <div id="tabs">
+      <button data-t="add" class="on">追加</button>
+      <button data-t="move">動かす</button>
+      <button data-t="size">寸法</button>
+      <button data-t="ai">AI提案</button>
+      <button data-t="save">保存</button>
+      <button class="tog" id="bSheet" title="パネルをたたむ">▾</button>
+    </div>
+    <div class="pane on" id="p-add">
+      <h3>部品を追加</h3>
+      <div class="grid">
+        <button class="big" data-add="log">丸太<small>直径5・長さ8</small></button>
+        <button class="big" data-add="disc">輪切りの台座<small>直径10・厚み2</small></button>
+        <button class="big" data-add="stick">細い棒<small>直径2・長さ12</small></button>
+        <button class="big" data-add="board">板</button>
+        <button class="big" data-add="halfmoon">半月板</button>
+        <button class="big" data-add="prism">三角柱</button>
+      </div>
+      <h3>置いて試すもの</h3>
+      <div class="grid">
+        <button class="big" data-add="phone">📱 スマホ<small>7.5×15.5cm 190g</small></button>
+        <button class="big" data-add="tablet">タブレット<small>17×25cm 480g</small></button>
+      </div>
+      <h3>見本（2つのアイデア）</h3>
+      <div class="grid">
+        <button class="big" data-preset="A_tab">案A 半月十字<small>＋タブレット横</small></button>
+        <button class="big" data-preset="A_phone">案A 半月十字<small>＋スマホ</small></button>
+        <button class="big" data-preset="B_phone">案B 背もたれ式<small>＋スマホ</small></button>
+        <button class="big" data-preset="B_tab">案B 背もたれ式<small>＋タブレット横</small></button>
+      </div>
+      <h3>全体</h3>
+      <div class="grid"><button class="big warn" id="bClear">すべて消す</button></div>
+      <p class="note">操作：1本指で視点回転、2本指で拡大・移動。部品をタップすると選択（タップした点が回転の中心になります）。</p>
+    </div>
+    <div class="pane" id="p-move">
+      <div class="selinfo" id="selInfo">部品をタップして選んでください</div>
+      <div class="row" style="margin-bottom:10px">
+        <div><div class="note">移動の幅</div><div class="seg" id="segStep"><button data-v="0.2">2mm</button><button data-v="0.5" class="on">5mm</button><button data-v="1">1cm</button><button data-v="2">2cm</button></div></div>
+        <div><div class="note">回転の幅</div><div class="seg" id="segRot"><button data-v="2">2°</button><button data-v="5" class="on">5°</button><button data-v="15">15°</button><button data-v="45">45°</button></div></div>
+      </div>
+      <h3>移動</h3>
+      <div class="pad">
+        <button class="big" data-mv="x,-1">← 左</button><button class="big" data-mv="y,1">↑ 上へ</button><button class="big" data-mv="x,1">右 →</button>
+        <button class="big" data-mv="z,-1">奥へ</button><button class="big" data-mv="y,-1">↓ 下へ</button><button class="big" data-mv="z,1">手前へ</button>
+      </div>
+      <h3>回転（タップした点が中心）</h3>
+      <div class="pad">
+        <button class="big" data-rt="x,1">前に倒す<small>X軸</small></button><button class="big" data-rt="y,1">左に回す<small>Y軸</small></button><button class="big" data-rt="z,1">左に傾ける<small>Z軸</small></button>
+        <button class="big" data-rt="x,-1">後ろに倒す<small>X軸</small></button><button class="big" data-rt="y,-1">右に回す<small>Y軸</small></button><button class="big" data-rt="z,-1">右に傾ける<small>Z軸</small></button>
+      </div>
+      <h3>その他</h3>
+      <div class="grid">
+        <button class="big" id="bDrop">床に下ろす</button>
+        <button class="big" id="bCenter">中心点を重心に</button>
+        <button class="big" id="bDup">複製</button>
+        <button class="big warn" id="bDel">削除</button>
+      </div>
+    </div>
+    <div class="pane" id="p-size"><div id="sizeForm" class="note">部品をタップして選んでください</div></div>
+    <div class="pane" id="p-ai">
+      <div class="field"><label>希望を書いてください</label>
+        <textarea id="aiWish">直径5センチの丸太1本と、厚さ2センチの輪切り1枚で、スマホもタブレットも立つ形</textarea></div>
+      <div class="row">
+        <button class="big pri" id="bAI">Claudeに提案してもらう</button>
+        <button class="big" id="bAIfix" disabled>結果を伝えて改善</button>
+      </div>
+      <div id="aiOut"></div>
+      <h3>提案JSONを貼り付けて組み立てる</h3>
+      <textarea id="aiPaste" placeholder='{"parts":[...], "reason":"..."}'></textarea>
+      <div class="row" style="margin-top:8px"><button class="big" id="bPaste">貼り付けたJSONで組み立てる</button></div>
+      <p class="note" id="aiNote"></p>
+    </div>
+    <div class="pane" id="p-save">
+      <div class="row"><input type="text" id="saveName" placeholder="名前（例：半月十字 v2）"><button class="big pri" id="bSave" style="flex:0 0 96px">保存</button></div>
+      <div id="saveList"></div>
+      <h3>JSONで書き出し・読み込み</h3>
+      <textarea id="ioText"></textarea>
+      <div class="grid" style="margin-top:8px">
+        <button class="big" id="bExport">今の形をJSONに</button>
+        <button class="big" id="bCopy">コピー</button>
+        <button class="big" id="bImport">JSONを読み込む</button>
+        <label class="big" style="display:flex;align-items:center;justify-content:center">ファイルを開く<input type="file" id="fileIn" accept=".json,application/json" style="display:none"></label>
+      </div>
+      <p class="note">保存はこのブラウザの中だけに残ります。別の端末で使うときはJSONをコピーして貼り付けてください。<br>今後：写真を背景に置いて輪郭をなぞり、厚みを入れて「輪郭から作った板」にする機能を追加予定（部品の形式はすでに対応済み）。</p>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { ConvexHull } from 'three/addons/math/ConvexHull.js';
+import * as CANNON from 'cannon-es';
+
+// ===== 共通コア：形状生成・物理 =====
+// 単位：cm, g, 秒。Y=上、Z=前（スマホの画面側）、X=右。
+function makeCore(THREE, CANNON, ConvexHull) {
+  const DENSITY = 0.55; // 木の密度 g/cm3
+  const G = 981;
+
+  const DEVICES = {
+    phone: { W: 7.5, H: 15.5, T: 0.8, m: 190, label: 'スマホ' },
+    tablet: { W: 17, H: 25, T: 0.7, m: 480, label: 'タブレット' },
+  };
+
+  const PART_DEFS = {
+    log: {
+      label: '丸太（円柱）', params: [
+        { k: 'd', label: '直径', unit: 'cm', min: 0.5, max: 20, step: 0.1, def: 5 },
+        { k: 'L', label: '長さ（中心線）', unit: 'cm', min: 0.5, max: 40, step: 0.1, def: 8 },
+        { k: 'cut', label: '下端の切り口角度（軸に対して／90=直角）', unit: '°', min: 30, max: 90, step: 1, def: 90 },
+        { k: 'gw', label: '上面の溝 幅（0=なし）', unit: 'cm', min: 0, max: 5, step: 0.1, def: 0 },
+        { k: 'gd', label: '溝 深さ', unit: 'cm', min: 0.1, max: 3, step: 0.1, def: 0.5 },
+        { k: 'gz', label: '溝 位置（中心から前へ）', unit: 'cm', min: -10, max: 10, step: 0.1, def: 0 },
+      ]
+    },
+    board: {
+      label: '板', params: [
+        { k: 'W', label: '幅', unit: 'cm', min: 0.5, max: 40, step: 0.1, def: 10 },
+        { k: 'H', label: '高さ', unit: 'cm', min: 0.5, max: 40, step: 0.1, def: 5 },
+        { k: 'T', label: '厚み', unit: 'cm', min: 0.3, max: 10, step: 0.1, def: 2 },
+      ]
+    },
+    halfmoon: {
+      label: '半月板', params: [
+        { k: 'D', label: '直径', unit: 'cm', min: 2, max: 30, step: 0.1, def: 10 },
+        { k: 'T', label: '厚み', unit: 'cm', min: 0.3, max: 6, step: 0.1, def: 2.5 },
+        { k: 'sw', label: '切り込み 幅（0=なし）', unit: 'cm', min: 0, max: 6, step: 0.1, def: 0 },
+        { k: 'sd', label: '切り込み 深さ', unit: 'cm', min: 0.1, max: 15, step: 0.1, def: 2.5 },
+        { k: 'sfrom', label: '切り込みの向き', type: 'select', options: [['top', '弧の側（上）から'], ['bottom', '平らな辺（下）から']], def: 'top' },
+        { k: 'nx', label: '受け切り欠き 位置（0=なし）', unit: 'cm', min: -15, max: 15, step: 0.1, def: 0 },
+        { k: 'nw', label: '受け切り欠き 幅', unit: 'cm', min: 0.3, max: 4, step: 0.1, def: 1.2 },
+        { k: 'nd', label: '受け切り欠き 深さ', unit: 'cm', min: 0.2, max: 5, step: 0.1, def: 1 },
+      ]
+    },
+    prism: {
+      label: '三角柱', params: [
+        { k: 'B', label: '底辺', unit: 'cm', min: 0.5, max: 30, step: 0.1, def: 6 },
+        { k: 'H', label: '高さ', unit: 'cm', min: 0.5, max: 30, step: 0.1, def: 5 },
+        { k: 'L', label: '奥行（長さ）', unit: 'cm', min: 0.5, max: 40, step: 0.1, def: 8 },
+        { k: 'a', label: '頂点の位置（底辺中心から）', unit: 'cm', min: -15, max: 15, step: 0.1, def: 0 },
+      ]
+    },
+    custom: {
+      label: '輪郭から作った板', params: [
+        { k: 'T', label: '厚み', unit: 'cm', min: 0.3, max: 10, step: 0.1, def: 2 },
+      ]
+    },
+    phone: { label: 'スマホ', params: [{ k: 'land', label: '向き', type: 'select', options: [['0', '縦'], ['1', '横']], def: '0' }] },
+    tablet: { label: 'タブレット', params: [{ k: 'land', label: '向き', type: 'select', options: [['0', '縦'], ['1', '横']], def: '0' }] },
+  };
+
+  const isDevice = (t) => t === 'phone' || t === 'tablet';
+
+  function defaults(type) {
+    const o = {};
+    for (const p of PART_DEFS[type].params) o[p.k] = p.def;
+    if (type === 'custom') o.pts = [[-4, 0], [4, 0], [3, 4], [-3, 4]];
+    return o;
+  }
+
+  // ---------- 2D ユーティリティ ----------
+  const area2 = (p) => { let a = 0; for (let i = 0; i < p.length; i++) { const [x1, y1] = p[i], [x2, y2] = p[(i + 1) % p.length]; a += x1 * y2 - x2 * y1; } return a / 2; };
+  function hull2(pts) {
+    const p = pts.map(q => [q[0], q[1]]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    if (p.length < 3) return p;
+    const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lo = [], up = [];
+    for (const q of p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 1e-9) lo.pop(); lo.push(q); }
+    for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 1e-9) up.pop(); up.push(q); }
+    up.pop(); lo.pop(); return lo.concat(up);
+  }
+  // 多角形 → 縦の短冊（台形）→ 凸な部分に結合
+  function convexDecompose(poly) {
+    const xs = [...new Set(poly.map(p => +p[0].toFixed(5)))].sort((a, b) => a - b);
+    const traps = [];
+    for (let i = 0; i < xs.length - 1; i++) {
+      const x0 = xs[i], x1 = xs[i + 1]; if (x1 - x0 < 1e-5) continue;
+      const xm = (x0 + x1) / 2, cuts = [];
+      for (let j = 0; j < poly.length; j++) {
+        const a = poly[j], b = poly[(j + 1) % poly.length];
+        if ((a[0] - xm) * (b[0] - xm) < 0) {
+          const f = (x) => a[1] + (b[1] - a[1]) * (x - a[0]) / (b[0] - a[0]);
+          cuts.push([f(xm), f(x0), f(x1)]);
+        }
+      }
+      cuts.sort((p, q) => p[0] - q[0]);
+      for (let k = 0; k + 1 < cuts.length; k += 2) {
+        const lo = cuts[k], hi = cuts[k + 1];
+        const pts = [[x0, lo[1]], [x1, lo[2]], [x1, hi[2]], [x0, hi[1]]];
+        traps.push({ x0, x1, pts, area: Math.abs(area2(pts)) });
+      }
+    }
+    const pieces = [];
+    for (const t of traps) {
+      let merged = false;
+      for (const pc of pieces) {
+        if (Math.abs(pc.x1 - t.x0) > 1e-5) continue;
+        const h = hull2(pc.pts.concat(t.pts));
+        if (Math.abs(Math.abs(area2(h)) - (pc.area + t.area)) < 1e-4 * (1 + pc.area + t.area)) {
+          pc.pts = h; pc.area += t.area; pc.x1 = t.x1; merged = true; break;
+        }
+      }
+      if (!merged) pieces.push({ pts: t.pts, area: t.area, x1: t.x1 });
+    }
+    return pieces.map(p => hull2(p.pts));
+  }
+
+  // ---------- 各部品の輪郭 ----------
+  function halfmoonOutline(p) {
+    const R = p.D / 2, seg = 32;
+    const cuts = []; // 上からの切り込み [xl,xr,yb]
+    if (p.sw > 0 && p.sfrom === 'top') cuts.push([-p.sw / 2, p.sw / 2, Math.max(0.2, R - p.sd)]);
+    if (p.nx && Math.abs(p.nx) + p.nw / 2 < R - 0.1) {
+      const xa = p.nx - p.nw / 2, xb = p.nx + p.nw / 2;
+      const yb = Math.max(0.2, Math.sqrt(Math.max(0, R * R - Math.max(xa * xa, xb * xb))) - p.nd);
+      cuts.push([xa, xb, yb]);
+    }
+    cuts.sort((a, b) => b[0] - a[0]);
+    const out = [];
+    if (p.sw > 0 && p.sfrom === 'bottom') {
+      const h = Math.min(p.sd, R - 0.2);
+      out.push([-R, 0], [-p.sw / 2, 0], [-p.sw / 2, h], [p.sw / 2, h], [p.sw / 2, 0], [R, 0]);
+    } else out.push([-R, 0], [R, 0]);
+    const arcY = (x) => Math.sqrt(Math.max(0, R * R - x * x));
+    let ci = 0;
+    for (let i = 1; i < seg; i++) {
+      const x = R * Math.cos(Math.PI * i / seg);
+      while (ci < cuts.length && x < cuts[ci][1]) {
+        const [xl, xr, yb] = cuts[ci];
+        out.push([xr, arcY(xr)], [xr, yb], [xl, yb], [xl, arcY(xl)]);
+        ci++;
+      }
+      const c = cuts.find(c => x <= c[1] && x >= c[0]);
+      if (!c) out.push([x, arcY(x)]);
+    }
+    while (ci < cuts.length) { const [xl, xr, yb] = cuts[ci]; out.push([xr, arcY(xr)], [xr, yb], [xl, yb], [xl, arcY(xl)]); ci++; }
+    return out;
+  }
+  function profileOf(part) {
+    const p = part.p;
+    switch (part.type) {
+      case 'board': return { poly: [[-p.W / 2, 0], [p.W / 2, 0], [p.W / 2, p.H], [-p.W / 2, p.H]], T: p.T };
+      case 'halfmoon': return { poly: halfmoonOutline(p), T: p.T };
+      case 'prism': return { poly: [[-p.B / 2, 0], [p.B / 2, 0], [p.a, p.H]], T: p.L };
+      case 'custom': return { poly: p.pts, T: p.T };
+      case 'phone': case 'tablet': {
+        const d = DEVICES[part.type], land = String(p.land) === '1';
+        const W = land ? d.H : d.W, H = land ? d.W : d.H;
+        return { poly: [[-W / 2, 0], [W / 2, 0], [W / 2, H], [-W / 2, H]], T: d.T };
+      }
+    }
+    return null;
+  }
+
+  function clipHalf(poly, axis, c, keepLess) { // Sutherland-Hodgman (2D)
+    const out = [], ins = (q) => keepLess ? q[axis] <= c : q[axis] >= c;
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      const ia = ins(a), ib = ins(b);
+      if (ia) out.push(a);
+      if (ia !== ib) { const t = (c - a[axis]) / (b[axis] - a[axis]); out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
+    }
+    return out;
+  }
+
+  // 部品 → 凸な点群のリスト（ローカル座標、原点＝底面中心）
+  function pieceClouds(part) {
+    if (part.type === 'log') {
+      const p = part.p, r = p.d / 2, seg = 24;
+      let t = (90 - p.cut) * Math.PI / 180;
+      const tmax = Math.atan(Math.max(0.05, (p.L - 0.3) / r));
+      t = Math.min(t, tmax * 0.98);
+      const circ = []; for (let i = 0; i < seg; i++) { const a = 2 * Math.PI * i / seg; circ.push([r * Math.cos(a), r * Math.sin(a)]); } // [x,z]
+      const bottom = circ.map(([x, z]) => [x, z * Math.tan(t), z]);
+      const gd = Math.min(p.gd, p.L - r * Math.tan(t) - 0.2);
+      if (!(p.gw > 0) || gd <= 0) return [bottom.concat(circ.map(([x, z]) => [x, p.L, z]))];
+      const yMid = p.L - gd, clouds = [bottom.concat(circ.map(([x, z]) => [x, yMid, z]))];
+      for (const [c, less] of [[p.gz - p.gw / 2, true], [p.gz + p.gw / 2, false]]) {
+        const poly = clipHalf(circ, 1, c, less);
+        if (poly.length >= 3 && Math.abs(area2(poly)) > 0.05) clouds.push(poly.flatMap(([x, z]) => [[x, yMid, z], [x, p.L, z]]));
+      }
+      return clouds;
+    }
+    const pr = profileOf(part);
+    return convexDecompose(pr.poly).map(pc => pc.flatMap(([x, y]) => [[x, y, -pr.T / 2], [x, y, pr.T / 2]]));
+  }
+
+  function hullOf(cloud) {
+    const vs = cloud.map(([x, y, z]) => new THREE.Vector3(x, y, z));
+    const h = new ConvexHull().setFromPoints(vs);
+    const verts = [], faces = [], idx = new Map();
+    const key = (v) => `${v.x.toFixed(5)},${v.y.toFixed(5)},${v.z.toFixed(5)}`;
+    const id = (v) => { const k = key(v); if (!idx.has(k)) { idx.set(k, verts.length); verts.push(v.clone()); } return idx.get(k); };
+    for (const f of h.faces) {
+      const loop = []; let e = f.edge;
+      do { loop.push(id(e.head().point)); e = e.next; } while (e !== f.edge);
+      if (new Set(loop).size >= 3) faces.push(loop);
+    }
+    // 体積・重心
+    const c0 = verts[0]; let vol = 0; const cen = new THREE.Vector3();
+    const ctr = new THREE.Vector3(); verts.forEach(v => ctr.add(v)); ctr.divideScalar(verts.length);
+    for (const f of faces) {
+      // 外向きに揃える
+      const a = verts[f[0]], b = verts[f[1]], c = verts[f[2]];
+      const n = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a));
+      if (n.dot(new THREE.Vector3().subVectors(a, ctr)) < 0) f.reverse();
+      for (let i = 1; i + 1 < f.length; i++) {
+        const A = verts[f[0]], B = verts[f[i]], C = verts[f[i + 1]];
+        const v = new THREE.Vector3().subVectors(A, c0).dot(new THREE.Vector3().subVectors(B, c0).cross(new THREE.Vector3().subVectors(C, c0))) / 6;
+        vol += v; cen.addScaledVector(new THREE.Vector3().add(c0).add(A).add(B).add(C).multiplyScalar(0.25), v);
+      }
+    }
+    if (vol > 0) cen.divideScalar(vol);
+    return { verts, faces, vol: Math.abs(vol), cen };
+  }
+
+  // 部品の形を作る（重心を原点に）
+  function buildShape(part) {
+    const hulls = pieceClouds(part).map(hullOf).filter(h => h.vol > 1e-4);
+    let vol = 0; const com = new THREE.Vector3();
+    hulls.forEach(h => { vol += h.vol; com.addScaledVector(h.cen, h.vol); });
+    com.divideScalar(vol || 1);
+    hulls.forEach(h => h.verts.forEach(v => v.sub(com)));
+    const mass = isDevice(part.type) ? DEVICES[part.type].m : vol * DENSITY;
+    return { hulls, com, vol, mass };
+  }
+
+  function partQuat(part) {
+    const r = part.rot || [0, 0, 0];
+    return new THREE.Quaternion().setFromEuler(new THREE.Euler(r[0] * Math.PI / 180, r[1] * Math.PI / 180, r[2] * Math.PI / 180, 'XYZ'));
+  }
+
+  function makeWorld(fr = 0.45) {
+    const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -G, 0) });
+    world.broadphase = new CANNON.NaiveBroadphase();
+    world.solver.iterations = 30;
+    world.defaultContactMaterial.friction = fr;
+    world.defaultContactMaterial.restitution = 0;
+    world.defaultContactMaterial.contactEquationStiffness = 5e7;
+    world.defaultContactMaterial.contactEquationRelaxation = 3;
+    const ground = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
+    ground.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+    ground.userData = { kind: 'ground' };
+    world.addBody(ground);
+    return world;
+  }
+
+  function addBody(world, part, shape) {
+    const body = new CANNON.Body({ mass: shape.mass, linearDamping: 0.02, angularDamping: 0.05 });
+    for (const h of shape.hulls) {
+      const c = h.cen.clone().sub(shape.com); // 各凸部品の重心をその形の原点にする
+      const sh = new CANNON.ConvexPolyhedron({ vertices: h.verts.map(v => new CANNON.Vec3(v.x - c.x, v.y - c.y, v.z - c.z)), faces: h.faces });
+      body.addShape(sh, new CANNON.Vec3(c.x, c.y, c.z));
+    }
+    body.userData = { kind: isDevice(part.type) ? 'device' : 'part', part };
+    resetBody(body, part, shape);
+    world.addBody(body);
+    return body;
+  }
+  function resetBody(body, part, shape) {
+    const q = partQuat(part);
+    const c = shape.com.clone().applyQuaternion(q).add(new THREE.Vector3(...part.pos));
+    body.position.set(c.x, c.y, c.z);
+    body.quaternion.set(q.x, q.y, q.z, q.w);
+    body.velocity.set(0, 0, 0); body.angularVelocity.set(0, 0, 0);
+    body.force.set(0, 0, 0); body.torque.set(0, 0, 0);
+    body.wakeUp();
+  }
+
+  // 接点を集める
+  function contactsOf(world) {
+    const out = [];
+    for (const c of world.contacts) {
+      const a = c.bi, b = c.bj;
+      const pa = new THREE.Vector3(a.position.x + c.ri.x, a.position.y + c.ri.y, a.position.z + c.ri.z);
+      const ka = a.userData?.kind, kb = b.userData?.kind;
+      let kind;
+      const has = (k) => ka === k || kb === k;
+      if (has('device') && has('ground')) kind = 'devGround';
+      else if (has('device')) kind = 'devPart';
+      else if (has('ground')) kind = 'partGround';
+      else kind = 'partPart';
+      out.push({ p: pa, kind, a: a.userData?.part?.id, b: b.userData?.part?.id });
+    }
+    return out;
+  }
+
+  // 結果判定
+  function evaluate(entries, simTime) {
+    const up = new THREE.Vector3(0, 1, 0);
+    const res = { devices: [], parts: [], ok: true, msgs: [] };
+    for (const e of entries) {
+      const b = e.body, part = e.part;
+      const q0 = partQuat(part), q1 = new THREE.Quaternion(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w);
+      const ang = 2 * Math.acos(Math.min(1, Math.abs(q0.clone().invert().multiply(q1).w))) * 180 / Math.PI;
+      const p0 = e.shape.com.clone().applyQuaternion(q0).add(new THREE.Vector3(...part.pos));
+      const move = new THREE.Vector3(b.position.x, b.position.y, b.position.z).sub(p0).length();
+      const speed = b.velocity.length();
+      if (isDevice(part.type)) {
+        const devUp = up.clone().applyQuaternion(q1);
+        const tiltFromFloor = 90 - Math.acos(Math.max(-1, Math.min(1, Math.abs(devUp.y)))) * 180 / Math.PI; // 床からの角度
+        const fell = tiltFromFloor < 30 || b.position.y < 1.2 || speed > 15;
+        res.devices.push({ id: part.id, name: DEVICES[part.type].label, angle: tiltFromFloor, moved: move, fell });
+        if (fell) res.ok = false;
+      } else {
+        const moved = ang > 12 || move > 2.5;
+        res.parts.push({ id: part.id, rotated: ang, moved: move });
+        if (moved) res.msgs.push(`部品${part.id}が${ang > 12 ? Math.round(ang) + '°回転' : Math.round(move * 10) / 10 + 'cm移動'}`);
+      }
+    }
+    return res;
+  }
+
+  return { DEVICES, PART_DEFS, isDevice, defaults, buildShape, partQuat, makeWorld, addBody, resetBody, contactsOf, evaluate, halfmoonOutline, profileOf };
+}
+
+
+const C = makeCore(THREE, CANNON, ConvexHull);
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
+const r1 = (v) => Math.round(v * 10) / 10;
+
+// ===== 見本 =====
+const hm = (ry, from) => ({ type: 'halfmoon', p: { D: 10, T: 2.5, sw: 2.6, sd: 2.5, sfrom: from }, pos: [0, 0, 0], rot: [0, ry, 0] });
+const discB = () => ({ type: 'log', p: { d: 10, L: 2, cut: 90, gw: 1.0, gd: 0.6, gz: 3.8 }, pos: [0, 0, 0], rot: [0, 0, 0] });
+const logB = () => ({ type: 'log', p: { d: 5, L: 6.55, cut: 60 }, pos: [0, 4.52, 1.65], rot: [-90, 0, 0] });
+const PRESETS = {
+  A_tab: { title: '案A 半月2枚の十字＋タブレット（横）', reason: '半月2枚を十字に組んで45°回し、手前のV字の谷にタブレットをもたせる。2本の腕の弧の2点で背中を、机で下端を支える。', parts: [hm(45, 'top'), hm(135, 'bottom'), { type: 'tablet', p: { land: '1' }, pos: [0, 0.05, 4.6], rot: [-20, 0, 0] }] },
+  A_phone: { title: '案A 半月2枚の十字＋スマホ', reason: '同じ十字にスマホを横向きでもたせた例。背中を支える弧が低く、下端が机の上で滑りやすい。', parts: [hm(45, 'top'), hm(135, 'bottom'), { type: 'phone', p: { land: '1' }, pos: [0, 0.05, 4.6], rot: [-20, 0, 0] }] },
+  B_phone: { title: '案B 細い丸太の背もたれ式＋スマホ', reason: '60°に切った切り口を手前に向けて丸太を寝かせる。スマホは下端を台座の溝、背中を切り口の面で支える。', parts: [discB(), logB(), { type: 'phone', p: { land: '0' }, pos: [0, 1.45, 3.8], rot: [-27, 0, 0] }] },
+  B_tab: { title: '案B 背もたれ式＋タブレット（横）', reason: 'タブレットは横向きにすると重心が低くなり、丸太が押し負けない。', parts: [discB(), logB(), { type: 'tablet', p: { land: '1' }, pos: [0, 1.45, 3.8], rot: [-27, 0, 0] }] },
+};
+
+// ===== three.js =====
+const stage = $('#stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf6f1e8);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 2000);
+camera.position.set(26, 20, 34);
+const orbit = new OrbitControls(camera, renderer.domElement);
+orbit.target.set(0, 4, 0); orbit.enableDamping = true; orbit.maxPolarAngle = Math.PI * 0.495;
+orbit.minDistance = 8; orbit.maxDistance = 200;
+scene.add(new THREE.HemisphereLight(0xfffaf0, 0xc8b8a0, 1.2));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+sun.position.set(18, 40, 22); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 120 });
+scene.add(sun);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.ShadowMaterial({ opacity: 0.18 }));
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+const grid = new THREE.GridHelper(60, 60, 0xcbb89c, 0xe6dccd); grid.position.y = 0.01; scene.add(grid);
+const grid5 = new THREE.GridHelper(60, 12, 0xb79d7a, 0xb79d7a); grid5.position.y = 0.012; scene.add(grid5);
+// 前を示す矢印
+const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0.05, 14), 4, 0x9a8466, 1.2, 0.8);
+scene.add(arrow);
+
+const tc = new TransformControls(camera, renderer.domElement);
+tc.setSize(1.5); tc.setSpace('world'); tc.enabled = false; tc.visible = false;
+scene.add(tc);
+const anchor = new THREE.Object3D(); scene.add(anchor);
+
+const pivotMark = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff3b8b, depthTest: false }));
+pivotMark.renderOrder = 10; pivotMark.visible = false; scene.add(pivotMark);
+
+// 接点表示
+const contactGeo = new THREE.SphereGeometry(0.3, 12, 8);
+const contactMats = { devPart: 0xe5484d, devGround: 0xf59e0b, partPart: 0x22a06b, partGround: 0x3b82f6 };
+for (const k in contactMats) contactMats[k] = new THREE.MeshBasicMaterial({ color: contactMats[k], depthTest: false, transparent: true, opacity: 0.95 });
+const contactPool = [];
+function showContacts(list) {
+  while (contactPool.length < list.length) { const m = new THREE.Mesh(contactGeo, contactMats.partGround); m.renderOrder = 9; scene.add(m); contactPool.push(m); }
+  contactPool.forEach((m, i) => { const c = list[i]; m.visible = !!c; if (c) { m.position.copy(c.p); m.material = contactMats[c.kind]; } });
+}
+
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+
+// ===== 状態 =====
+let parts = [];
+let nextId = 1;
+const views = new Map(); // id -> {group, shape}
+let selectedId = null;
+const pivotLocal = new THREE.Vector3();
+let sim = null; // {world, entries, t}
+let showingSim = false;
+let lastResult = null;
+let autoSim = true;
+let moveStep = 0.5, rotStep = 5;
+
+const woodColors = [0xc08a55, 0xb07a48, 0xcf9b66, 0xa86f3e, 0xd2a574, 0xb98454];
+function makeMaterials(part) {
+  if (C.isDevice(part.type)) return { body: new THREE.MeshStandardMaterial({ color: 0x2b2f36, roughness: 0.4, metalness: 0.2 }) };
+  return { body: new THREE.MeshStandardMaterial({ color: woodColors[part.id % woodColors.length], roughness: 0.85 }) };
+}
+function geomFromHull(h) {
+  const pos = [];
+  for (const f of h.faces) for (let i = 1; i + 1 < f.length; i++) for (const k of [f[0], f[i], f[i + 1]]) { const v = h.verts[k]; pos.push(v.x, v.y, v.z); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); return g;
+}
+function buildView(part) {
+  const old = views.get(part.id);
+  if (old) { scene.remove(old.group); old.group.traverse(o => { o.geometry?.dispose?.(); }); }
+  const shape = C.buildShape(part);
+  const group = new THREE.Group(); group.userData.partId = part.id;
+  const mats = makeMaterials(part);
+  const prof = part.type === 'log' ? null : C.profileOf(part);
+  const geoms = [];
+  if (prof) {
+    const sh = new THREE.Shape(prof.poly.map(([x, y]) => new THREE.Vector2(x, y)));
+    const g = new THREE.ExtrudeGeometry(sh, { depth: prof.T, bevelEnabled: false, curveSegments: 1 });
+    g.translate(-shape.com.x, -shape.com.y, -prof.T / 2 - shape.com.z);
+    geoms.push(g);
+  } else {
+    for (const h of shape.hulls) geoms.push(geomFromHull(h));
+  }
+  for (const g of geoms) {
+    const m = new THREE.Mesh(g, mats.body); m.castShadow = true; m.receiveShadow = true; m.userData.partId = part.id; group.add(m);
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(g, 25), new THREE.LineBasicMaterial({ color: C.isDevice(part.type) ? 0x111111 : 0x6b4a2b, transparent: true, opacity: 0.45 }));
+    group.add(e);
+  }
+  if (C.isDevice(part.type)) { // 画面
+    const pr = C.profileOf(part); const xs = pr.poly.map(p => p[0]), ys = pr.poly.map(p => p[1]);
+    const W = Math.max(...xs) - Math.min(...xs), H = Math.max(...ys);
+    const scr = new THREE.Mesh(new THREE.PlaneGeometry(W - 0.6, H - 1.0), new THREE.MeshStandardMaterial({ color: 0x5aa0e6, emissive: 0x1d4f80, emissiveIntensity: 0.5, roughness: 0.2 }));
+    scr.position.set(-shape.com.x, H / 2 - shape.com.y, pr.T / 2 + 0.02 - shape.com.z); scr.userData.partId = part.id;
+    group.add(scr);
+  }
+  scene.add(group);
+  views.set(part.id, { group, shape, mats });
+  placeView(part);
+}
+function placedMatrix(part) {
+  const v = views.get(part.id), q = C.partQuat(part);
+  const p = v.shape.com.clone().applyQuaternion(q).add(new THREE.Vector3(...part.pos));
+  return { p, q };
+}
+function placeView(part) {
+  const v = views.get(part.id); const { p, q } = placedMatrix(part);
+  v.group.position.copy(p); v.group.quaternion.copy(q); v.group.updateMatrixWorld(true);
+}
+function placeAll() { parts.forEach(placeView); showingSim = false; showContacts([]); updatePivotMark(); }
+function removeView(id) { const v = views.get(id); if (v) { scene.remove(v.group); views.delete(id); } }
+
+function highlight() {
+  for (const [id, v] of views) {
+    const on = id === selectedId;
+    v.mats.body.emissive?.setHex(on ? 0x553311 : 0x000000);
+  }
+}
+function partById(id) { return parts.find(p => p.id === id); }
+
+// ===== 部品の追加 =====
+function sceneRightEdge() {
+  let maxX = -Infinity; for (const [, v] of views) { const b = new THREE.Box3().setFromObject(v.group); maxX = Math.max(maxX, b.max.x); }
+  return maxX;
+}
+function addPart(kind) {
+  let part;
+  const base = (type, p) => ({ id: nextId++, type, p: { ...C.defaults(type), ...p }, pos: [0, 0, 0], rot: [0, 0, 0] });
+  if (kind === 'disc') part = base('log', { d: 10, L: 2 });
+  else if (kind === 'stick') part = base('log', { d: 2, L: 12 });
+  else part = base(kind, {});
+  if (C.isDevice(part.type)) { part.pos = [0, 0.05, 7]; part.rot = [-20, 0, 0]; }
+  else if (parts.some(p => !C.isDevice(p.type))) {
+    const shape = C.buildShape(part); const r = Math.max(4, shape.hulls.flatMap(h => h.verts).reduce((m, v) => Math.max(m, Math.abs(v.x)), 0));
+    part.pos = [r1(sceneRightEdge() + r + 2), 0, 0];
+  }
+  parts.push(part); buildView(part); select(part.id, null); afterEdit();
+}
+
+// ===== 選択 =====
+function select(id, hitWorld) {
+  selectedId = id;
+  if (id == null) { tc.detach(); pivotMark.visible = false; highlight(); renderSel(); return; }
+  if (showingSim) placeAll();
+  const v = views.get(id);
+  if (hitWorld) pivotLocal.copy(v.group.worldToLocal(hitWorld.clone()));
+  else pivotLocal.set(0, 0, 0);
+  highlight(); updatePivotMark(); renderSel(); renderSize();
+}
+function pivotWorld() { const v = views.get(selectedId); return v.group.localToWorld(pivotLocal.clone()); }
+function updatePivotMark() {
+  if (selectedId == null || !views.get(selectedId)) { pivotMark.visible = false; tc.detach(); return; }
+  const w = pivotWorld(); pivotMark.position.copy(w); pivotMark.visible = true;
+  anchor.position.copy(w); anchor.quaternion.identity(); anchor.updateMatrixWorld(true);
+  if (gizmoMode !== 'off') tc.attach(anchor); else tc.detach();
+}
+function renderSel() {
+  const p = partById(selectedId);
+  if (!p) { $('#selInfo').textContent = '部品をタップして選んでください'; return; }
+  const v = views.get(p.id);
+  $('#selInfo').innerHTML = `<b>${partName(p)}</b>　重さ ${Math.round(v.shape.mass)}g<br><span class="note">位置 x${r1(p.pos[0])} y${r1(p.pos[1])} z${r1(p.pos[2])}cm ／ 回転 ${p.rot.map(r1).join('°, ')}°</span>`;
+}
+function partName(p) {
+  if (p.type === 'log') { const s = p.p; return s.L <= 3 && s.d >= 6 ? `輪切り(${p.id})` : `丸太(${p.id})`; }
+  return (C.PART_DEFS[p.type]?.label || p.type) + `(${p.id})`;
+}
+
+// ===== タップ =====
+const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
+let down = null;
+renderer.domElement.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now(), gizmo: tc.axis !== null || tc.dragging }; });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!down) return; const d = down; down = null;
+  if (d.gizmo || tc.dragging) return;
+  if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 10 || performance.now() - d.t > 600) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const meshes = []; for (const [, v] of views) v.group.traverse(o => { if (o.isMesh) meshes.push(o); });
+  const hit = ray.intersectObjects(meshes, false)[0];
+  if (hit) {
+    select(hit.object.userData.partId, hit.point);
+    if ($('#tabs .on').dataset.t === 'add') showTab('move');
+  } else select(null);
+});
+
+// ===== 3Dハンドル =====
+let gizmoMode = 'off'; let dragStart = null;
+$('#bGizmo').onclick = () => {
+  gizmoMode = gizmoMode === 'off' ? 'translate' : gizmoMode === 'translate' ? 'rotate' : 'off';
+  $('#bGizmo').classList.toggle('on', gizmoMode !== 'off');
+  $('#bGizmo').innerHTML = gizmoMode === 'off' ? '✥<small>ﾊﾝﾄﾞﾙ</small>' : gizmoMode === 'translate' ? '✥<small>移動</small>' : '⟳<small>回転</small>';
+  tc.enabled = tc.visible = gizmoMode !== 'off';
+  if (gizmoMode !== 'off') tc.setMode(gizmoMode);
+  updatePivotMark();
+};
+tc.addEventListener('dragging-changed', (e) => {
+  orbit.enabled = !e.value;
+  const part = partById(selectedId); if (!part) return;
+  if (e.value) {
+    if (showingSim) placeAll();
+    stopSim();
+    dragStart = { a: anchor.matrixWorld.clone(), ref: new THREE.Matrix4().compose(new THREE.Vector3(...part.pos), C.partQuat(part), new THREE.Vector3(1, 1, 1)) };
+  } else { dragStart = null; afterEdit(); }
+});
+tc.addEventListener('objectChange', () => {
+  const part = partById(selectedId); if (!part || !dragStart) return;
+  anchor.updateMatrixWorld(true);
+  const delta = anchor.matrixWorld.clone().multiply(dragStart.a.clone().invert());
+  const m = delta.multiply(dragStart.ref);
+  const p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3(); m.decompose(p, q, s);
+  setPose(part, p, q); placeView(part); renderSel();
+  pivotMark.position.copy(anchor.position);
+});
+function setPose(part, p, q) {
+  const e = new THREE.Euler().setFromQuaternion(q, 'XYZ');
+  part.pos = [p.x, p.y, p.z].map(v => Math.round(v * 100) / 100);
+  part.rot = [e.x, e.y, e.z].map(v => Math.round(v * 180 / Math.PI * 10) / 10);
+}
+
+// ===== ボタン操作（長押しで連続） =====
+function repeatable(btn, fn) {
+  let timer = null, iv = null;
+  const start = (e) => { e.preventDefault(); fn(); timer = setTimeout(() => { iv = setInterval(fn, 90); }, 380); };
+  const end = () => { if (timer || iv) { clearTimeout(timer); clearInterval(iv); timer = iv = null; afterEdit(); } };
+  btn.addEventListener('pointerdown', start);
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, end));
+}
+$$('[data-mv]').forEach(b => repeatable(b, () => {
+  const part = partById(selectedId); if (!part) return;
+  if (showingSim) placeAll(); stopSim();
+  const [ax, s] = b.dataset.mv.split(','); const i = { x: 0, y: 1, z: 2 }[ax];
+  part.pos[i] = Math.round((part.pos[i] + moveStep * +s) * 100) / 100;
+  placeView(part); updatePivotMark(); renderSel();
+}));
+$$('[data-rt]').forEach(b => repeatable(b, () => {
+  const part = partById(selectedId); if (!part) return;
+  if (showingSim) placeAll(); stopSim();
+  const [ax, s] = b.dataset.rt.split(',');
+  const axis = new THREE.Vector3(ax === 'x' ? 1 : 0, ax === 'y' ? 1 : 0, ax === 'z' ? 1 : 0);
+  const R = new THREE.Quaternion().setFromAxisAngle(axis, rotStep * +s * Math.PI / 180);
+  const P = pivotWorld();
+  const O = new THREE.Vector3(...part.pos).sub(P).applyQuaternion(R).add(P);
+  const q = R.multiply(C.partQuat(part));
+  setPose(part, O, q); placeView(part); updatePivotMark(); renderSel();
+}));
+$$('#segStep button').forEach(b => b.onclick = () => { moveStep = +b.dataset.v; $$('#segStep button').forEach(x => x.classList.toggle('on', x === b)); });
+$$('#segRot button').forEach(b => b.onclick = () => { rotStep = +b.dataset.v; $$('#segRot button').forEach(x => x.classList.toggle('on', x === b)); });
+$('#bDrop').onclick = () => { const part = partById(selectedId); if (!part) return; if (showingSim) placeAll(); const b = new THREE.Box3().setFromObject(views.get(part.id).group); part.pos[1] = Math.round((part.pos[1] - b.min.y + 0.02) * 100) / 100; placeView(part); updatePivotMark(); renderSel(); afterEdit(); };
+$('#bCenter').onclick = () => { if (selectedId == null) return; pivotLocal.set(0, 0, 0); updatePivotMark(); };
+$('#bDup').onclick = () => { const part = partById(selectedId); if (!part) return; const c = JSON.parse(JSON.stringify(part)); c.id = nextId++; c.pos[0] = r1(c.pos[0] + 3); parts.push(c); buildView(c); select(c.id, null); afterEdit(); };
+$('#bDel').onclick = () => { if (selectedId == null) return; parts = parts.filter(p => p.id !== selectedId); removeView(selectedId); select(null); afterEdit(); };
+$('#bClear').onclick = () => { if (!parts.length) return; if (!confirmInline('#bClear', 'もう一度押すと全部消します')) return; parts.forEach(p => removeView(p.id)); parts = []; select(null); stopSim(); setResult('部品がありません。「追加」から部品を置いてください。'); };
+function confirmInline(sel, msg) {
+  const b = $(sel); if (b.dataset.armed) { delete b.dataset.armed; b.textContent = 'すべて消す'; return true; }
+  b.dataset.armed = 1; b.textContent = msg; setTimeout(() => { delete b.dataset.armed; b.textContent = 'すべて消す'; }, 3000); return false;
+}
+$$('[data-add]').forEach(b => b.onclick = () => addPart(b.dataset.add));
+$$('[data-preset]').forEach(b => b.onclick = () => { const pr = PRESETS[b.dataset.preset]; loadDesign(JSON.parse(JSON.stringify(pr.parts))); setResult(`<b>${pr.title}</b><br><span class="small">${pr.reason}</span>`); });
+
+// ===== 寸法フォーム =====
+function renderSize() {
+  const part = partById(selectedId); const box = $('#sizeForm');
+  if (!part) { box.innerHTML = '部品をタップして選んでください'; return; }
+  const defs = C.PART_DEFS[part.type].params;
+  let h = `<div class="selinfo"><b>${partName(part)}</b></div>`;
+  const numField = (key, label, unit, min, max, step, val, grp) => `<div class="field"><label><span>${label}</span><span>${unit}</span></label><div class="ctl"><input type="range" min="${min}" max="${max}" step="${step}" value="${val}" data-k="${key}" data-g="${grp}"><input type="number" min="${min}" max="${max}" step="${step}" value="${val}" data-k="${key}" data-g="${grp}"></div></div>`;
+  for (const d of defs) {
+    if (d.type === 'select') h += `<div class="field"><label>${d.label}</label><select data-k="${d.k}" data-g="p">${d.options.map(([v, l]) => `<option value="${v}" ${String(part.p[d.k]) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`;
+    else h += numField(d.k, d.label, d.unit, d.min, d.max, d.step, part.p[d.k], 'p');
+  }
+  if (part.type === 'custom') h += `<div class="field"><label>輪郭の点 [[x,y],…]（cm）</label><textarea data-k="pts" data-g="pts">${JSON.stringify(part.p.pts)}</textarea></div>`;
+  if (part.type === 'log') h += `<p class="note">切り口角度60°＝軸に対して60°の斜め切り。切り口を下にすると丸太が60°傾いて立ちます（回転X＝${90 - part.p.cut}°で前に傾く）。</p>`;
+  h += '<h3>位置（cm）</h3>';
+  ['x', 'y', 'z'].forEach((a, i) => h += numField(i, `位置 ${a === 'x' ? '左右 x' : a === 'y' ? '高さ y' : '前後 z（＋が手前）'}`, 'cm', -40, 40, 0.1, part.pos[i], 'pos'));
+  h += '<h3>回転（度）</h3>';
+  ['X（前後に倒す）', 'Y（向き）', 'Z（左右に傾ける）'].forEach((a, i) => h += numField(i, a, '°', -180, 180, 1, part.rot[i], 'rot'));
+  box.innerHTML = h;
+  box.querySelectorAll('input,select,textarea').forEach(el => el.addEventListener('input', () => {
+    const g = el.dataset.g, k = el.dataset.k;
+    if (g === 'pts') { try { const v = JSON.parse(el.value); if (Array.isArray(v) && v.length >= 3) part.p.pts = v; else return; } catch { return; } }
+    else if (g === 'p') part.p[k] = el.tagName === 'SELECT' ? el.value : +el.value;
+    else part[g][+k] = +el.value;
+    box.querySelectorAll(`[data-k="${k}"][data-g="${g}"]`).forEach(o => { if (o !== el) o.value = el.value; });
+    if (showingSim) placeAll(); stopSim();
+    if (g === 'p' || g === 'pts') buildView(part); else placeView(part);
+    highlight(); updatePivotMark(); renderSel(); afterEditDebounced();
+  }));
+}
+
+// ===== シミュレーション =====
+const STEP = 1 / 240, SUB = 8, DUR = 3.5;
+function startSim() {
+  stopSim(); placeAll();
+  if (!parts.length) { setResult('部品がありません。'); return; }
+  const world = C.makeWorld(); const entries = [];
+  for (const part of parts) { const v = views.get(part.id); entries.push({ part, shape: v.shape, body: C.addBody(world, part, v.shape) }); }
+  sim = { world, entries, t: 0 }; showingSim = true;
+  tc.detach(); pivotMark.visible = false;
+  setResult('<span class="spin"></span> シミュレーション中…');
+}
+function stopSim() { sim = null; }
+function stepSim() {
+  if (!sim) return;
+  for (let i = 0; i < SUB; i++) { sim.world.step(STEP); sim.t += STEP; }
+  for (const e of sim.entries) { const g = views.get(e.part.id)?.group; if (!g) continue; g.position.set(e.body.position.x, e.body.position.y, e.body.position.z); g.quaternion.set(e.body.quaternion.x, e.body.quaternion.y, e.body.quaternion.z, e.body.quaternion.w); }
+  const cs = C.contactsOf(sim.world); showContacts(cs);
+  if (sim.t >= DUR) finishSim(cs);
+}
+function finishSim(cs) {
+  const res = C.evaluate(sim.entries, sim.t); lastResult = { res, contacts: summarizeContacts(cs) };
+  sim.done = true; const s = sim; sim = null; lastSim = s;
+  const devs = res.devices;
+  let html;
+  if (!devs.length) html = res.msgs.length ? `<b class="ng">部品が動きました</b><br><span class="small">${res.msgs.join('、')}</span>` : `<b class="ok">部品は安定しています</b><br><span class="small">スマホかタブレットを置いて試してください</span>`;
+  else html = devs.map(d => d.fell ? `<b class="ng">✗ ${d.name}は倒れました</b>` : `<b class="ok">✓ ${d.name}が立ちました</b>　床から${Math.round(d.angle)}°`).join('<br>') +
+    `<br><span class="small">${lastResult.contacts.text}${res.msgs.length ? '／' + res.msgs.join('、') : ''}</span>`;
+  setResult(html); $('#bAIfix').disabled = !lastAI;
+  if (selectedId != null) renderSel();
+}
+let lastSim = null;
+function summarizeContacts(cs) {
+  const n = { devPart: 0, devGround: 0, partPart: 0, partGround: 0 }; cs.forEach(c => n[c.kind]++);
+  const pts = cs.filter(c => c.kind === 'devPart').map(c => `(${r1(c.p.x)},${r1(c.p.y)},${r1(c.p.z)})`);
+  const text = n.devPart + n.devGround ? `支え：部品に${n.devPart}点・床に${n.devGround}点` : '';
+  return { n, devPartPoints: pts.slice(0, 8), text };
+}
+function setResult(h) { $('#result').innerHTML = h; }
+let edT = null;
+function afterEdit() { clearTimeout(edT); if (autoSim) startSim(); }
+function afterEditDebounced() { clearTimeout(edT); edT = setTimeout(() => { if (autoSim) startSim(); }, 600); }
+$('#bSim').onclick = startSim;
+$('#bReset').onclick = () => { stopSim(); placeAll(); setResult('配置の状態に戻しました。'); };
+$('#bAdopt').onclick = () => {
+  if (!lastSim || !showingSim) { setResult('先に ▶ でシミュレーションしてください。'); return; }
+  for (const e of lastSim.entries) {
+    const q = new THREE.Quaternion(e.body.quaternion.x, e.body.quaternion.y, e.body.quaternion.z, e.body.quaternion.w);
+    const p = new THREE.Vector3(e.body.position.x, e.body.position.y, e.body.position.z).sub(e.shape.com.clone().applyQuaternion(q));
+    setPose(e.part, p, q);
+  }
+  placeAll(); setResult('落ち着いた姿勢を新しい配置にしました。'); renderSel(); renderSize();
+};
+
+// ===== 読み込み・保存 =====
+function sanitize(list) {
+  const out = [];
+  for (const raw of list || []) {
+    if (!raw || !C.PART_DEFS[raw.type]) continue;
+    const p = { ...C.defaults(raw.type) };
+    for (const [k, v] of Object.entries(raw.p || {})) if (k in p) p[k] = (k === 'pts') ? v : (typeof p[k] === 'string' ? String(v) : +v);
+    const pos = (raw.pos || [0, 0, 0]).slice(0, 3).map(Number), rot = (raw.rot || [0, 0, 0]).slice(0, 3).map(Number);
+    if ([...pos, ...rot].some(v => !isFinite(v))) continue;
+    out.push({ id: nextId++, type: raw.type, p, pos, rot });
+  }
+  return out;
+}
+function loadDesign(list) {
+  parts.forEach(p => removeView(p.id)); selectedId = null; tc.detach();
+  parts = sanitize(list); parts.forEach(buildView); highlight(); renderSel(); renderSize();
+  frameAll(); startSim();
+}
+function frameAll() {
+  if (!parts.length) return;
+  const b = new THREE.Box3(); for (const [, v] of views) b.expandByObject(v.group);
+  const c = b.getCenter(new THREE.Vector3()), r = Math.max(8, b.getSize(new THREE.Vector3()).length());
+  orbit.target.copy(c); const dir = new THREE.Vector3(0.55, 0.45, 0.75).normalize();
+  camera.position.copy(c).addScaledVector(dir, r * 1.6); orbit.update();
+}
+const exportDesign = () => parts.map(({ type, p, pos, rot }) => ({ type, p, pos, rot }));
+const SKEY = 'logStandSaves.v1';
+const readSaves = () => { try { return JSON.parse(localStorage.getItem(SKEY) || '{}'); } catch { return {}; } };
+const writeSaves = (s) => { try { localStorage.setItem(SKEY, JSON.stringify(s)); return true; } catch { return false; } };
+function renderSaves() {
+  const s = readSaves(), names = Object.keys(s).sort((a, b) => (s[b].at || 0) - (s[a].at || 0));
+  $('#saveList').innerHTML = names.length ? names.map(n => `<div class="saveItem"><span>${n.replace(/</g, '&lt;')}<br><small class="note">${new Date(s[n].at).toLocaleString('ja-JP')}</small></span><button class="big" data-load="${encodeURIComponent(n)}">開く</button><button class="big warn" data-del="${encodeURIComponent(n)}">消す</button></div>`).join('') : '<p class="note">保存したものはまだありません。</p>';
+  $$('[data-load]').forEach(b => b.onclick = () => { const it = readSaves()[decodeURIComponent(b.dataset.load)]; if (it) loadDesign(it.parts); });
+  $$('[data-del]').forEach(b => b.onclick = () => { const s2 = readSaves(); delete s2[decodeURIComponent(b.dataset.del)]; writeSaves(s2); renderSaves(); });
+}
+$('#bSave').onclick = () => {
+  const name = $('#saveName').value.trim() || `形 ${new Date().toLocaleString('ja-JP')}`;
+  const s = readSaves(); s[name] = { parts: exportDesign(), at: Date.now() };
+  setResult(writeSaves(s) ? `「${name}」を保存しました。` : 'このブラウザでは保存できませんでした。JSONで書き出してください。'); renderSaves();
+};
+$('#bExport').onclick = () => { $('#ioText').value = JSON.stringify({ parts: exportDesign() }, null, 1); };
+$('#bCopy').onclick = async () => { if (!$('#ioText').value) $('#bExport').onclick(); try { await navigator.clipboard.writeText($('#ioText').value); setResult('JSONをコピーしました。'); } catch { $('#ioText').select(); setResult('テキストを長押ししてコピーしてください。'); } };
+function parseDesignText(t) {
+  const m = t.match(/\{[\s\S]*\}|\[[\s\S]*\]/); if (!m) throw new Error('JSONが見つかりません');
+  const v = JSON.parse(m[0]); return Array.isArray(v) ? { parts: v } : v;
+}
+$('#bImport').onclick = () => { try { const v = parseDesignText($('#ioText').value); loadDesign(v.parts); } catch (e) { setResult('読み込めませんでした：' + e.message); } };
+$('#fileIn').onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { const v = parseDesignText(await f.text()); loadDesign(v.parts); $('#ioText').value = JSON.stringify(v, null, 1); } catch (er) { setResult('読み込めませんでした：' + er.message); } };
+
+// ===== AI提案 =====
+let sample = null, lastAI = null;
+const AI_GUIDE = `あなたは木工と力学に詳しい設計者です。キャンプ場の廃材の丸太（直径3〜10cm）から、ノコギリだけで作れるスマホ・タブレットスタンドを設計し、3D物理シミュレーター用のJSONで返してください。
+
+# 座標と単位
+- 単位cm。Y=上、Z=手前（スマホの画面が向く側）、X=右。床はy=0。
+- rot は度で [X, Y, Z]（XYZ順のオイラー角）。X軸の負の回転で物が後ろ（-Z）へ倒れる。
+- 各部品の原点＝「回転していないときの底面の中心」。
+
+# 部品の種類（p の中身）
+- "log" 丸太（円柱）。軸は+Y。p: d=直径, L=中心線の長さ, cut=下端の切り口と軸の角度（90=直角、60=60°の斜め切り）, gw/gd/gz=上面の溝の幅・深さ・位置（溝はX方向に走り、gzは中心から+Z側へのずれ。gw=0で溝なし）。
+  - 斜め切りの原点は切り口の中心。rot=[90-cut,0,0] にすると切り口が床に平らに着き、丸太は手前(+Z)に傾いて立つ。
+  - 寝かせるとき：rot=[-90,0,0] で軸が奥(-Z)へ向き、下端（斜め切り側）が手前に来る。このとき切り口は床からcut度の面になり、背もたれに使える。pos.yは床（または台座の上面）＋d/2。
+  - 輪切りの台座は d=10, L=2 のように短い丸太。
+- "board" 板。XY面の長方形を厚みTでZ方向に押し出し。p: W=幅, H=高さ, T=厚み。
+- "halfmoon" 半月板。平らな辺がy=0（X方向）、弧が上。厚みTはZ方向。p: D=直径, T, sw=中央の切り込み幅, sd=切り込み深さ, sfrom="top"(弧の側から)|"bottom"(平らな辺から), nx/nw/nd=弧の上の受け切り欠き（nx=0でなし）。
+  - 十字組み：1枚目 sfrom="top", 2枚目 sfrom="bottom" で同じpos、2枚目はrot Yを90°ずらす。sw=厚み+0.1、sd=半径の半分。
+- "prism" 三角柱。XY面の三角形（底辺B、高さH、頂点のx位置a）を長さLでZ方向に押し出し。
+- "custom" 輪郭板。p.pts=[[x,y],...]（XY面の多角形、y>=0）, T=厚み。
+- "phone"（7.5×15.5×0.8cm, 190g）, "tablet"（17×25×0.7cm, 480g）。原点は下辺の中央、画面は+Z向き。p.land="1"で横向き。もたせるには rot=[-(90-床からの角度),0,0]。
+
+# 置き方のコツ
+- 部品どうしを重ねない（0.05〜0.3cmすき間をあけて少し上に置けば、重力で落ち着く）。
+- 背もたれ（支え）の高さはスマホの重心（下端から約7.5cm）に近いほど安定。下端は溝・段・切り欠きで止めると滑らない。
+- 押されて滑る・倒れる部品は、重くする・溝にはめる・十字に組むなどで固定する。
+- 部品は合計1〜3個（スマホ・タブレットは別）。ノコギリだけで切れる形。
+
+# 例（案B：背もたれ式＋スマホ）
+${JSON.stringify({ parts: PRESETS.B_phone.parts })}
+
+# 出力
+JSONだけを返す：
+{"title":"短い名前","reason":"どこで重さと傾きを支えているか（日本語2〜3文）","cuts":"切り方の手順（寸法・角度を含め短く）","parts":[ {"type":..,"p":{..},"pos":[x,y,z],"rot":[rx,ry,rz]}, ... ]}
+partsには、希望に合わせてスマホかタブレット（両方なら代表してタブレット）を1つ含める。`;
+
+(async () => {
+  try { sample = await window.claude?.use?.('sample'); } catch { sample = null; }
+  if (!sample) { $('#aiNote').textContent = 'この画面ではアプリ内からClaudeを呼び出せません（claude.aiのアーティファクトとして開くと使えます）。下の欄に、Claudeとのチャットで出してもらった提案JSONを貼り付けても組み立てられます。'; $('#bAI').disabled = true; }
+  else $('#aiNote').textContent = '初めて使うときは、Claudeを呼び出す許可を求められます。';
+})();
+
+async function askAI(extra) {
+  if (!sample) return;
+  const wish = $('#aiWish').value.trim(); if (!wish) return;
+  const out = $('#aiOut'); out.style.display = 'block'; out.innerHTML = '<span class="spin"></span> Claudeが考えています…';
+  $('#bAI').disabled = $('#bAIfix').disabled = true;
+  const prompt = `${AI_GUIDE}\n\n# 希望\n${wish}${extra || ''}`;
+  try {
+    let v;
+    if (typeof sample.json === 'function') v = await sample.json(prompt, { modelTier: 'complex' });
+    else { const r = await sample(prompt, { modelTier: 'complex' }); v = parseDesignText(r.text); }
+    if (typeof v === 'string') v = parseDesignText(v);
+    if (!v || !Array.isArray(v.parts) || !v.parts.length) throw new Error('部品が入っていませんでした');
+    lastAI = { wish, design: v };
+    out.innerHTML = `<b>${esc(v.title || '提案')}</b>\n<b>支え方：</b>${esc(v.reason || '')}\n<b>切り方：</b>${esc(v.cuts || '')}`;
+    loadDesign(v.parts);
+    $('#aiPaste').value = JSON.stringify(v);
+  } catch (e) {
+    const code = e?.code;
+    out.textContent = code === 'not_granted' ? 'Claudeの呼び出しが許可されませんでした。' : code === 'rate_limited' ? '少し時間をおいてからもう一度試してください。' : '提案を受け取れませんでした：' + (e?.message || e);
+  } finally { $('#bAI').disabled = !sample; $('#bAIfix').disabled = !lastAI || !lastResult; }
+}
+const esc = (s) => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+$('#bAI').onclick = () => askAI('');
+$('#bAIfix').onclick = () => {
+  if (!lastAI || !lastResult) return;
+  const r = lastResult.res;
+  const fb = `\n\n# 前回の提案\n${JSON.stringify({ parts: exportDesign() })}\n# シミュレーション結果\n` +
+    (r.devices.map(d => `${d.name}: ${d.fell ? '倒れた' : '立った'}（床から${Math.round(d.angle)}°、${r1(d.moved)}cm動いた）`).join('\n') || '端末なし') +
+    `\n部品の動き: ${r.msgs.join('、') || 'なし'}\nスマホと部品の接点: ${lastResult.contacts.devPartPoints.join(' ') || 'なし'}\nこの結果をふまえて、立つように改良した案を出してください。`;
+  askAI(fb);
+};
+$('#bPaste').onclick = () => {
+  try { const v = parseDesignText($('#aiPaste').value); lastAI = { wish: $('#aiWish').value, design: v }; const out = $('#aiOut'); out.style.display = 'block'; out.innerHTML = `<b>${esc(v.title || '貼り付けた案')}</b>\n${v.reason ? '<b>支え方：</b>' + esc(v.reason) + '\n' : ''}${v.cuts ? '<b>切り方：</b>' + esc(v.cuts) : ''}`; loadDesign(v.parts); }
+  catch (e) { setResult('読み込めませんでした：' + e.message); }
+};
+
+// ===== タブ =====
+function showTab(t) {
+  $$('#tabs [data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  $$('.pane').forEach(p => p.classList.toggle('on', p.id === 'p-' + t));
+  $('#sheet').classList.remove('min'); $('#bSheet').textContent = '▾';
+  if (t === 'save') renderSaves();
+  if (t === 'size') renderSize();
+}
+$$('#tabs [data-t]').forEach(b => b.onclick = () => showTab(b.dataset.t));
+$('#bSheet').onclick = () => { const m = $('#sheet').classList.toggle('min'); $('#bSheet').textContent = m ? '▴' : '▾'; };
+
+// ===== ループ =====
+function loop() {
+  requestAnimationFrame(loop);
+  stepSim(); orbit.update(); renderer.render(scene, camera);
+}
+resize(); loop();
+loadDesign(JSON.parse(JSON.stringify(PRESETS.B_phone.parts)));
+setTimeout(() => {}, 0);
+window.__sim = { get parts() { return parts; }, loadDesign, startSim, get result() { return lastResult; } };
+</script>
+</body>
+</html>
