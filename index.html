@@ -1085,12 +1085,13 @@ partsには、希望に合わせてスマホかタブレット（両方なら代
 
 (async () => {
   try { sample = await window.claude?.use?.('sample'); } catch { sample = null; }
-  if (!sample) { $('#aiNote').textContent = 'この画面ではアプリ内からClaudeを呼び出せません（claude.aiのアーティファクトとして開くと使えます）。下の欄に、Claudeとのチャットで出してもらった提案JSONを貼り付けても組み立てられます。'; $('#bAI').disabled = true; }
+  if (!sample) { $('#aiNote').textContent = NO_AI_MSG; }
   else $('#aiNote').textContent = '初めて使うときは、Claudeを呼び出す許可を求められます。';
 })();
 
+const NO_AI_MSG = 'この画面（GitHub Pagesなど）ではアプリ内からClaudeを呼び出せません。claude.aiのアーティファクトとして開くと使えます。または、下の欄にClaudeとのチャットで出してもらった提案JSONを貼り付けても組み立てられます。';
 async function askAI(extra) {
-  if (!sample) return;
+  if (!sample) { const out = $('#aiOut'); out.style.display = 'block'; out.textContent = NO_AI_MSG; return; }
   const wish = $('#aiWish').value.trim(); if (!wish) return;
   const out = $('#aiOut'); out.style.display = 'block'; out.innerHTML = '<span class="spin"></span> Claudeが考えています…';
   $('#bAI').disabled = $('#bAIfix').disabled = true;
@@ -1108,7 +1109,7 @@ async function askAI(extra) {
   } catch (e) {
     const code = e?.code;
     out.textContent = code === 'not_granted' ? 'Claudeの呼び出しが許可されませんでした。' : code === 'rate_limited' ? '少し時間をおいてからもう一度試してください。' : '提案を受け取れませんでした：' + (e?.message || e);
-  } finally { $('#bAI').disabled = !sample; $('#bAIfix').disabled = !lastAI || !lastResult; }
+  } finally { $('#bAI').disabled = false; $('#bAIfix').disabled = !lastAI || !lastResult; }
 }
 const esc = (s) => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 $('#bAI').onclick = () => askAI('');
